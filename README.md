@@ -147,10 +147,11 @@ Different devices can use different passwords via the device specific overrides:
 > [!NOTE]
 >
 > -   This is **not** the 4-digit PIN pairing code. Pairing credentials and the AirPlay password are independent.
-> -   The plugin generates a per-device wrapper script under `user_storage/appletv-enhanced/<MAC>/` that passes the password to pyatv's `atvremote` as `--airplay-password` and `--raop-password`. The password is kept in a separate `0600` file and is redacted from the plugin logs.
+> -   The plugin generates per-device wrappers under `user_storage/appletv-enhanced/<MAC>/` for both `atvremote` and `atvscript`. They export the password as `PYATV_AIRPLAY_PASSWORD`; a small pyatv patch bundled with the plugin answers the AirPlay 2 `WWW-Authenticate: Digest realm="airplay"` challenge on the RTSP remote control channel. `atvremote` additionally receives `--airplay-password` and `--raop-password` for classic RAOP/AirPlay streaming.
+> -   This password support is **experimental**: it relies on pyatv internals (tested with pyatv 0.18.0) and on the Apple TV using HTTP Digest for AirPlay. Existing pairing credentials (PIN pairing) are still required and must be valid.
+> -   The password is kept in a separate `0600` file and is redacted from the plugin logs.
 > -   Homebridge stores the password in plain text in `config.json`. Protect the file accordingly (e.g. `chmod 600 config.json`).
-> -   pyatv's `atvscript`, which is used for discovery and push updates, does not support these flags. The password therefore applies to `atvremote` sessions (AirPlay/RAOP); normal Companion/MRP control uses the pairing credentials.
-> -   The AirPlay password only affects AirPlay/RAOP sessions. If the plugin works with the password configured but fails without it, the Apple TV is enforcing password-protected AirPlay.
+> -   If the Apple TV rejects the password, the pyatv error changes from an RTSP timeout to an authentication error. Enable debug logging to see it.
 
 ## Pairing
 

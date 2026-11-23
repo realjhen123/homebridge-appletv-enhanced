@@ -101,6 +101,23 @@ manually.');
         this.log.success('Virtual python environment (re)created');
     }
 
+    private ensureAirplayPasswordPatch(): void {
+        const sourcePath: string = path.join(__dirname, 'python', 'pyatv_airplay_password.py');
+        const targetPath: string = path.join(this.pluginDirPath, 'pyatv_airplay_password.py');
+        try {
+            const content: string = fs.readFileSync(sourcePath, 'utf8');
+            if (!fs.existsSync(targetPath) || fs.readFileSync(targetPath, 'utf8') !== content) {
+                fs.writeFileSync(targetPath, content, { encoding: 'utf8' });
+                this.log.info('AirPlay password support module (re)created.');
+            } else {
+                this.log.debug('AirPlay password support module is up to date.');
+            }
+        } catch (e: unknown) {
+            this.log.warn(`Could not install the AirPlay password support module: \
+${e instanceof Error ? e.message : String(e)}`);
+        }
+    }
+
     private async ensureOpenSSLVersion(): Promise<void> {
         const [openSSLVersionString]: [string, string, number | null] =
             await runCommand(this.log, this.venvPythonExecutable, ['-c', 'import ssl; print(ssl.OPENSSL_VERSION);'], undefined, true);
@@ -135,6 +152,7 @@ wonder why this fix is required, please refer to https://github.com/maxileith/ho
     }
 
     private ensurePyatvWrappers(): void {
+        this.ensureAirplayPasswordPatch();
         for (const [script, wrapperName] of Object.entries(PYATV_WRAPPER_NAMES)) {
             const wrapperPath: string = path.join(this.venvPath, 'bin', wrapperName);
             // the sh trampoline (as used by pip) avoids shebang issues with long paths or paths containing spaces
@@ -143,6 +161,12 @@ wonder why this fix is required, please refer to https://github.com/maxileith/ho
 ' '''
 import asyncio
 import sys
+
+sys.path.insert(0, ${JSON.stringify(this.pluginDirPath)})
+try:
+    import pyatv_airplay_password  # noqa: F401
+except ImportError:
+    pass
 
 from pyatv.scripts.${script} import main
 

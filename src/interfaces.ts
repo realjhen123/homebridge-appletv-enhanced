@@ -84,6 +84,7 @@ export interface AppleTVEnhancedPlatformConfig extends Pick<PlatformConfig, '_br
 export interface AlternatePyATVDeviceOptions {
     airplayCredentials?: string;
     atvremotePath?: string;
+    atvscriptPath?: string;
     companionCredentials?: string;
     mac: string;
 }

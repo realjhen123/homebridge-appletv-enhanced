@@ -203,6 +203,10 @@ crashlytics.properties
 crashlytics-build.properties
 fabric.properties
 
+# Python bytecode
+__pycache__/
+*.pyc
+
 # Editor-based Rest Client
 .idea/httpRequests
 
