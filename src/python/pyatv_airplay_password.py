@@ -26,6 +26,10 @@ _LOGGER = logging.getLogger(__name__)
 
 _PASSWORD = os.environ.get("PYATV_AIRPLAY_PASSWORD")
 
+# Diagnostic probes on the encrypted control channel, enabled by default for
+# now. Set PYATV_AIRPLAY_PROBE=0 to turn them off.
+_PROBE = os.environ.get("PYATV_AIRPLAY_PROBE", "1") == "1"
+
 if _PASSWORD:
     from pyatv import exceptions
     from pyatv.support import rtsp
@@ -51,6 +55,50 @@ if _PASSWORD:
         if realm is None or nonce is None:
             return None
         return realm.group(1), nonce.group(1)
+
+    async def _probe_encrypted(connection):
+        """Probe the encrypted connection right after pair-verify (diagnostic).
+
+        Sends a harmless ``GET /info`` twice: once without and once with a
+        Digest ``Authorization`` header. This tells whether the encrypted
+        channel works at all and whether the receiver accepts authentication
+        inside it.
+
+        Set ``PYATV_AIRPLAY_PROBE=0`` to disable the probes.
+        """
+
+        challenge = _connection_challenges.get(connection)
+
+        for label, authenticated in (("without auth", False), ("with Digest", True)):
+            headers = {}
+            if authenticated:
+                if challenge is None:
+                    _LOGGER.debug(
+                        "AP2 probe (%s): no Digest challenge available", label
+                    )
+                    continue
+                realm, nonce = challenge
+                headers["Authorization"] = rtsp.get_digest_payload(
+                    "GET", "/info", _AUTH_USERNAME, realm, _PASSWORD, nonce
+                )
+            try:
+                response = await connection.send_and_receive(
+                    "GET",
+                    "/info",
+                    allow_error=True,
+                    timeout=5,
+                    protocol="RTSP/1.0",
+                    user_agent="AirPlay/550.10",
+                    headers=headers,
+                )
+                _LOGGER.debug(
+                    "AP2 probe (%s): encrypted GET /info -> %d %s",
+                    label,
+                    response.code,
+                    response.message,
+                )
+            except Exception as ex:  # pylint: disable=broad-except
+                _LOGGER.debug("AP2 probe (%s): encrypted GET /info failed: %r", label, ex)
 
     def _install_preauth_probe():
         """Ask for a challenge on the plain connection, before pair-verify.
@@ -88,7 +136,10 @@ if _PASSWORD:
                     "Could not fetch AirPlay password challenge before pair-verify",
                     exc_info=True,
                 )
-            return await original_verify_connection(credentials, connection)
+            verifier = await original_verify_connection(credentials, connection)
+            if _PROBE:
+                await _probe_encrypted(connection)
+            return verifier
 
         ap2_session.verify_connection = verify_connection
 
