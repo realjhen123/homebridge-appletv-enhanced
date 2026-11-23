@@ -53,6 +53,7 @@ if _PASSWORD:
 
     _original_exchange = rtsp.RtspSession.exchange
     _connection_challenges = weakref.WeakKeyDictionary()
+    _no_password_connections = weakref.WeakSet()
 
     def _challenge(response):
         headers = response.headers
@@ -179,6 +180,19 @@ if _PASSWORD:
                         _LOGGER.debug(
                             "AirPlay password challenge received before pair-verify"
                         )
+                else:
+                    _no_password_connections.add(connection)
+                    _LOGGER.debug(
+                        "Receiver does not require an AirPlay password "
+                        "(OPTIONS before pair-verify -> %d)",
+                        response.code,
+                    )
+            except exceptions.AuthenticationError:
+                _no_password_connections.add(connection)
+                _LOGGER.debug(
+                    "Receiver does not require an AirPlay password "
+                    "(OPTIONS before pair-verify -> 403)"
+                )
             except Exception:  # pylint: disable=broad-except
                 _LOGGER.debug(
                     "Could not fetch AirPlay password challenge before pair-verify",
@@ -195,6 +209,9 @@ if _PASSWORD:
 
     async def _fetch_challenge(connection):
         """Return the Digest challenge for this connection, if available."""
+        if connection in _no_password_connections:
+            return None
+
         challenge = _connection_challenges.get(connection)
         if challenge is not None:
             del _connection_challenges[connection]
@@ -222,6 +239,18 @@ if _PASSWORD:
             )
             if response.code == 401:
                 return _challenge(response)
+            # Anything but a challenge means the receiver does not ask for a
+            # password; stop probing for this connection.
+            _no_password_connections.add(connection)
+            _LOGGER.debug(
+                "Receiver does not require an AirPlay password (OPTIONS -> %d)",
+                response.code,
+            )
+        except exceptions.AuthenticationError:
+            # 403 from a receiver without a password, raised even with
+            # allow_error; treat it as "no password required".
+            _no_password_connections.add(connection)
+            _LOGGER.debug("Receiver does not require an AirPlay password (403)")
         except Exception:  # pylint: disable=broad-except
             _LOGGER.debug(
                 "Could not fetch AirPlay password challenge in advance",
