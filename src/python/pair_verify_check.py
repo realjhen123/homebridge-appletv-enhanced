@@ -171,7 +171,18 @@ def main():
     args = parser.parse_args()
 
     with open(args.credentials_file, encoding="utf-8") as credentials_file:
-        credentials = parse_credentials(credentials_file.read().strip())
+        raw_credentials = credentials_file.read().strip()
+
+    if not raw_credentials:
+        print(
+            "credentials file is empty: the plugin has not finished pairing yet.\n"
+            "Open the pairing URL from the Homebridge log and enter the PIN shown "
+            "on the Apple TV, then run this script again.",
+            flush=True,
+        )
+        raise SystemExit(2)
+
+    credentials = parse_credentials(raw_credentials)
 
     password = None
     if args.password_file is not None:
