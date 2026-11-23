@@ -24,6 +24,17 @@ import weakref
 
 _LOGGER = logging.getLogger(__name__)
 
+# pyatv's scripts do not configure logging unless --debug is given, so send our
+# messages straight to stderr to make them visible in the Homebridge log.
+if not _LOGGER.handlers:
+    _handler = logging.StreamHandler()
+    _handler.setFormatter(
+        logging.Formatter("pyatv_airplay_password: %(levelname)s %(message)s")
+    )
+    _LOGGER.addHandler(_handler)
+    _LOGGER.setLevel(logging.DEBUG)
+    _LOGGER.propagate = False
+
 _PASSWORD = os.environ.get("PYATV_AIRPLAY_PASSWORD")
 
 # Diagnostic probes on the encrypted control channel, enabled by default for
