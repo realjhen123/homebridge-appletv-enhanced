@@ -24,27 +24,6 @@ import weakref
 
 _LOGGER = logging.getLogger(__name__)
 
-# Debug output must not go to stderr: node-pyatv treats any stderr output of
-# the pyatv child process as a failed request and discards the real result.
-# pyatv's scripts do not configure logging either, so write to a file next to
-# this module instead.
-if not _LOGGER.handlers:
-    _log_path = os.path.join(
-        os.path.dirname(os.path.abspath(__file__)), "airplay-password.log"
-    )
-    try:
-        if os.path.exists(_log_path) and os.path.getsize(_log_path) > 1024 * 1024:
-            os.remove(_log_path)
-        _handler = logging.FileHandler(_log_path, encoding="utf-8")
-        _handler.setFormatter(
-            logging.Formatter("%(asctime)s %(levelname)s %(message)s")
-        )
-        _LOGGER.addHandler(_handler)
-    except OSError:
-        _LOGGER.addHandler(logging.NullHandler())
-    _LOGGER.setLevel(logging.DEBUG)
-    _LOGGER.propagate = False
-
 _PASSWORD = os.environ.get("PYATV_AIRPLAY_PASSWORD")
 
 # Diagnostic probes on the encrypted control channel (one extra GET /info on
@@ -55,6 +34,31 @@ if _PASSWORD:
     from pyatv import exceptions
     from pyatv.support import rtsp
     from pyatv.support.http import http_connect
+
+    # Debug output must not go to stderr: node-pyatv treats any stderr output
+    # of the pyatv child process as a failed request and discards the real
+    # result. pyatv's scripts do not configure logging either, so write to a
+    # file next to this module instead.
+    if not _LOGGER.handlers:
+        _log_path = os.path.join(
+            os.path.dirname(os.path.abspath(__file__)), "airplay-password.log"
+        )
+        try:
+            if (
+                os.path.exists(_log_path)
+                and os.path.getsize(_log_path) > 1024 * 1024
+            ):
+                os.remove(_log_path)
+            _handler = logging.FileHandler(_log_path, encoding="utf-8")
+            _handler.setFormatter(
+                logging.Formatter("%(asctime)s %(levelname)s %(message)s")
+            )
+            _LOGGER.addHandler(_handler)
+            os.chmod(_log_path, 0o600)
+        except OSError:
+            _LOGGER.addHandler(logging.NullHandler())
+        _LOGGER.setLevel(logging.DEBUG)
+        _LOGGER.propagate = False
 
     # The documented AirPlay digest username is "AirPlay" (RAOP uses "iTunes").
     _AUTH_USERNAME = "AirPlay"
@@ -86,7 +90,7 @@ if _PASSWORD:
         channel works at all and whether the receiver accepts authentication
         inside it.
 
-        Set ``PYATV_AIRPLAY_PROBE=0`` to disable the probes.
+        Disabled by default; set ``PYATV_AIRPLAY_PROBE=1`` to enable them.
         """
 
         challenge = _connection_challenges.get(connection)
