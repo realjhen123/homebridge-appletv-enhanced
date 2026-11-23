@@ -102,18 +102,22 @@ manually.');
     }
 
     private ensureAirplayPasswordPatch(): void {
-        const sourcePath: string = path.join(__dirname, 'python', 'pyatv_airplay_password.py');
-        const targetPath: string = path.join(this.pluginDirPath, 'pyatv_airplay_password.py');
+        const sourceDir: string = path.join(__dirname, 'python');
         try {
-            const content: string = fs.readFileSync(sourcePath, 'utf8');
-            if (!fs.existsSync(targetPath) || fs.readFileSync(targetPath, 'utf8') !== content) {
-                fs.writeFileSync(targetPath, content, { encoding: 'utf8' });
-                this.log.info('AirPlay password support module (re)created.');
-            } else {
-                this.log.debug('AirPlay password support module is up to date.');
+            const files: string[] = fs.readdirSync(sourceDir).filter((file: string): boolean => file.endsWith('.py'));
+            for (const file of files) {
+                const sourcePath: string = path.join(sourceDir, file);
+                const targetPath: string = path.join(this.pluginDirPath, file);
+                const content: string = fs.readFileSync(sourcePath, 'utf8');
+                if (!fs.existsSync(targetPath) || fs.readFileSync(targetPath, 'utf8') !== content) {
+                    fs.writeFileSync(targetPath, content, { encoding: 'utf8' });
+                    this.log.info(`${file} (re)created.`);
+                } else {
+                    this.log.debug(`${file} is up to date.`);
+                }
             }
         } catch (e: unknown) {
-            this.log.warn(`Could not install the AirPlay password support module: \
+            this.log.warn(`Could not install the Python support modules: \
 ${e instanceof Error ? e.message : String(e)}`);
         }
     }
