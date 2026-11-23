@@ -111,6 +111,43 @@ if _PASSWORD:
             except Exception as ex:  # pylint: disable=broad-except
                 _LOGGER.debug("AP2 probe (%s): encrypted GET /info failed: %r", label, ex)
 
+    def _install_verify_logger():
+        """Log every pair-verify response (diagnostic).
+
+        ``AirPlayHapPairVerifyProcedure.verify_credentials`` ignores the
+        response of the final pair-verify request ("TODO: check status code")
+        and reports success regardless. If the receiver rejects the
+        verification, pyatv still enables encryption and the receiver then
+        silently drops all encrypted traffic, which looks like a timeout.
+        """
+        from pyatv.auth import hap_tlv8
+        from pyatv.protocols.airplay.auth.hap import AirPlayHapPairVerifyProcedure
+
+        original_send = AirPlayHapPairVerifyProcedure._send
+
+        async def _send(self, data):
+            response = await original_send(self, data)
+            body = response.body
+            parsed = None
+            if isinstance(body, bytes):
+                try:
+                    parsed = hap_tlv8.read_tlv(body)
+                except Exception:  # pylint: disable=broad-except
+                    parsed = None
+                if parsed is None:
+                    parsed = body.hex()
+            _LOGGER.debug(
+                "pair-verify response: %d %s body=%s",
+                response.code,
+                response.message,
+                parsed,
+            )
+            return response
+
+        AirPlayHapPairVerifyProcedure._send = _send
+
+    _install_verify_logger()
+
     def _install_preauth_probe():
         """Ask for a challenge on the plain connection, before pair-verify.
 
