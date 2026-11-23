@@ -31,6 +31,7 @@ export interface CommonConfig {
 
 export interface DeviceConfigOverride {
     absoluteVolumeControl?: boolean;
+    airplayPassword?: string;
     avadaKedavraAppAmount?: number;
     customInputURIs?: string[];
     customPyatvCommands?: CustomPyATVCommandConfig[];
@@ -41,6 +42,7 @@ export interface DeviceConfigOverride {
     mac?: string;
     mediaTypes?: NodePyATVMediaType[];
     overrideAbsoluteVolumeControl?: boolean;
+    overrideAirplayPassword?: boolean;
     overrideAvadaKedavraAppAmount?: boolean;
     overrideCustomInputURIs?: boolean;
     overrideCustomPyatvCommands?: boolean;
@@ -57,6 +59,7 @@ export interface DeviceConfigOverride {
 
 export interface AppleTVEnhancedPlatformConfig extends Pick<PlatformConfig, '_bridge' | 'name' | 'platform'> {
     absoluteVolumeControl?: boolean;
+    airplayPassword?: string;
     avadaKedavraAppAmount?: number;
     customInputURIs?: string[];
     customPyatvCommands?: CustomPyATVCommandConfig[];
@@ -80,6 +83,7 @@ export interface AppleTVEnhancedPlatformConfig extends Pick<PlatformConfig, '_br
 
 export interface AlternatePyATVDeviceOptions {
     airplayCredentials?: string;
+    atvremotePath?: string;
     companionCredentials?: string;
     mac: string;
 }

@@ -29,6 +29,7 @@ import {
     snakeCaseToTitleCase,
     trimToMaxLength,
     camelCaseToTitleCase,
+    shellQuote,
 } from './utils';
 import type {
     AppleTVEnhancedPlatformConfig,
@@ -88,6 +89,7 @@ export class AppleTVEnhancedAccessory {
 
     private airPlayInputService: Service | undefined = undefined;
     private appConfigs: AppConfigs | undefined = undefined;
+    private atvremotePath: string | undefined = undefined;
     private avadaKedavraService: Service | undefined = undefined;
     private booted: boolean = false;
     private commonConfig: CommonConfig | undefined = undefined;
@@ -124,11 +126,14 @@ export class AppleTVEnhancedAccessory {
         this.mac = this.device.mac!;
         this.log = new PrefixLogger(this.platform.logLevelLogger, `${this.device.name} (${this.device.mac})`);
 
-        this.log.debug(`Accessory Config: ${JSON.stringify(this.config)}`);
+        this.log.debug(`Accessory Config: ${JSON.stringify(this.configForLogging())}`);
+
+        this.atvremotePath = this.setupAtvremoteWrapper();
 
         const credentials: string | undefined = this.getCredentials();
         this.device = CustomPyAtvInstance.deviceAdvanced({
             mac: this.accessory.context.mac as string,
+            atvremotePath: this.atvremotePath,
             airplayCredentials: credentials,
             companionCredentials: credentials,
         })!;
@@ -138,6 +143,7 @@ export class AppleTVEnhancedAccessory {
                 this.setCredentials(c);
                 this.device = CustomPyAtvInstance.deviceAdvanced({
                     mac: this.device.mac!,
+                    atvremotePath: this.atvremotePath,
                     airplayCredentials: c,
                     companionCredentials: c,
                 })!;
@@ -278,8 +284,24 @@ remaining)`);
         if (override.overrideSetTopBox === true) {
             config.setTopBox = override.setTopBox;
         }
+        if (override.overrideAirplayPassword === true) {
+            config.airplayPassword = override.airplayPassword;
+        }
 
         return config;
+    }
+
+    private configForLogging(): Record<string, unknown> {
+        const config: AppleTVEnhancedPlatformConfig = structuredClone(this.config);
+        if (config.airplayPassword !== undefined) {
+            config.airplayPassword = '***';
+        }
+        config.deviceSpecificOverrides?.forEach((override: DeviceConfigOverride): void => {
+            if (override.airplayPassword !== undefined) {
+                override.airplayPassword = '***';
+            }
+        });
+        return config as unknown as Record<string, unknown>;
     }
 
     private createAirPlayInput(): void {
@@ -787,7 +809,7 @@ from ${appConfigs[app.id].visibilityState} to ${value}.`);
 
         this.rocketRemote = new RocketRemote(
             this.device.mac!,
-            CustomPyAtvInstance.getAtvremotePath(),
+            this.getAtvremotePath(),
             this.getCredentials()!,
             this.getCredentials()!,
             this.log,
@@ -1024,6 +1046,10 @@ plugin after you have fixed the root cause. Enable debug logging to see the orig
             }
         }
         return this.appConfigs;
+    }
+
+    private getAtvremotePath(): string {
+        return this.atvremotePath ?? CustomPyAtvInstance.getAtvremotePath();
     }
 
     private getCommonConfig(): CommonConfig {
@@ -1539,7 +1565,7 @@ http://${localIP}:${httpPort}/. Then, enter the pairing code that will be displa
             let backOffSeconds: number = 0;
             let processClosed: boolean = false;
 
-            const process: ChildProcessWithoutNullStreams = spawn(CustomPyAtvInstance.getAtvremotePath(), [
+            const process: ChildProcessWithoutNullStreams = spawn(this.getAtvremotePath(), [
                 '--id', mac,
                 '--protocol', 'companion',
                 '--remote-name', `Homebridge AppleTV Enhanced (${localIP})`,
@@ -1673,6 +1699,59 @@ media-src * \'self\'');
         const jsonPath: string = this.getPath('remoteKeySwitches.json');
         this.log.debug(`Updating remote keys as switches config at ${jsonPath}`);
         fs.writeFileSync(jsonPath, JSON.stringify(this.remoteKeyAsSwitchConfigs, null, 4), { encoding: 'utf8', flag: 'w' });
+    }
+
+    /**
+     * Create a per-device wrapper around pyatv's `atvremote` executable that
+     * injects the AirPlay device password via `--airplay-password` and
+     * `--raop-password`. The password itself is kept in a separate file so it
+     * does not end up in process listings or node-pyatv debug logs.
+     */
+    private setupAtvremoteWrapper(): string {
+        const realAtvremotePath: string = CustomPyAtvInstance.getAtvremotePath();
+
+        if (this.config.airplayPassword === undefined || this.config.airplayPassword === '') {
+            this.log.debug('No AirPlay password configured. Using atvremote directly.');
+            return realAtvremotePath;
+        }
+
+        const dir: string = path.join(this.platform.api.user.storagePath(), 'appletv-enhanced', this.mac.replaceAll(':', ''));
+        fs.mkdirSync(dir, { recursive: true });
+
+        const passwordPath: string = path.join(dir, 'airplay-password');
+        const wrapperPath: string = path.join(dir, 'atvremote-with-password');
+
+        try {
+            if (!fs.existsSync(passwordPath) || fs.readFileSync(passwordPath, 'utf8') !== this.config.airplayPassword) {
+                fs.writeFileSync(passwordPath, this.config.airplayPassword, { encoding: 'utf8', mode: 0o600 });
+            }
+            fs.chmodSync(passwordPath, 0o600);
+
+            const wrapper: string = [
+                '#!/bin/sh',
+                '# Generated by homebridge-appletv-enhanced. Do not edit.',
+                `PASSWORD_FILE=${shellQuote(passwordPath)}`,
+                `REAL_ATVREMOTE=${shellQuote(realAtvremotePath)}`,
+                'if [ -r "$PASSWORD_FILE" ]; then',
+                '    PASSWORD="$(cat "$PASSWORD_FILE")"',
+                '    exec "$REAL_ATVREMOTE" --airplay-password "$PASSWORD" --raop-password "$PASSWORD" "$@"',
+                'fi',
+                'exec "$REAL_ATVREMOTE" "$@"',
+                '',
+            ].join('\n');
+
+            if (!fs.existsSync(wrapperPath) || fs.readFileSync(wrapperPath, 'utf8') !== wrapper) {
+                fs.writeFileSync(wrapperPath, wrapper, { encoding: 'utf8', mode: 0o700 });
+            }
+            fs.chmodSync(wrapperPath, 0o700);
+        } catch (e: unknown) {
+            this.log.error(`Could not create the AirPlay password wrapper: ${e instanceof Error ? e.message : String(e)}. \
+Falling back to atvremote without a password.`);
+            return realAtvremotePath;
+        }
+
+        this.log.debug(`Using AirPlay password wrapper ${wrapperPath}.`);
+        return wrapperPath;
     }
 
     private startPositionUpdate(): void {

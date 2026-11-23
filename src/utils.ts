@@ -10,6 +10,14 @@ export function capitalizeFirstLetter(value: string): string {
     return value.charAt(0).toUpperCase() + value.slice(1);
 }
 
+/**
+ * Quote a value for safe use as a single POSIX shell word.
+ */
+export function shellQuote(value: string): string {
+    // eslint-disable-next-line @stylistic/quotes
+    return `'${value.replaceAll("'", "'\\''")}'`;
+}
+
 export const delay = async (ms: number): Promise<void> => new Promise<void>((res) => setTimeout(res, ms));
 
 export function getLocalIP(): string {

@@ -99,7 +99,8 @@ This plugin automatically discovers Apple TV devices on the local network and ex
         -   Installation on other distros may vary
 -   [Homebridge Config UI &#8805; 4.54.2](https://github.com/homebridge/homebridge-config-ui-x/releases/tag/4.54.2) when creating backups
 -   Apple TV Models with **tvOS 15** and upwards are supported (all 4K ones and the latest HD one)
--   The access of Speakers & TVs should be either set to "Everybody" or "Anybody On the Same Network" without a password in the Home app
+-   The access of Speakers & TVs should be either set to "Everybody" or "Anybody On the Same Network" without a password in the Home app.
+    -   If a password is required, configure it with the `airplayPassword` option (see [AirPlay Password](#airplay-password)).
     -   Additionally, make sure to check the TV's HomeKit settings.
 
 > [!CAUTION]
@@ -112,6 +113,44 @@ This plugin automatically discovers Apple TV devices on the local network and ex
 > -   **[HOOBS](https://github.com/hoobs-org/HOOBS)**
 >     -   HOOBS is a 32 bit architecture and suffers from the above limitations.
 >     -   HOOBS has a different plugin system that prevents managing Apple TVs.
+
+## AirPlay Password
+
+If the Apple TV requires a password for AirPlay (`Settings > AirPlay > Require Password` in tvOS; the same password is used for RAOP/AirPlay 1), configure it with the `airplayPassword` option:
+
+```json
+{
+    "platforms": [
+        {
+            "platform": "AppleTVEnhanced",
+            "name": "Apple TV Enhanced",
+            "airplayPassword": "your-password"
+        }
+    ]
+}
+```
+
+Different devices can use different passwords via the device specific overrides:
+
+```json
+{
+    "deviceSpecificOverrides": [
+        {
+            "mac": "AA:BB:CC:DD:EE:FF",
+            "overrideAirplayPassword": true,
+            "airplayPassword": "password-of-this-apple-tv"
+        }
+    ]
+}
+```
+
+> [!NOTE]
+>
+> -   This is **not** the 4-digit PIN pairing code. Pairing credentials and the AirPlay password are independent.
+> -   The plugin generates a per-device wrapper script under `user_storage/appletv-enhanced/<MAC>/` that passes the password to pyatv's `atvremote` as `--airplay-password` and `--raop-password`. The password is kept in a separate `0600` file and is redacted from the plugin logs.
+> -   Homebridge stores the password in plain text in `config.json`. Protect the file accordingly (e.g. `chmod 600 config.json`).
+> -   pyatv's `atvscript`, which is used for discovery and push updates, does not support these flags. The password therefore applies to `atvremote` sessions (AirPlay/RAOP); normal Companion/MRP control uses the pairing credentials.
+> -   The AirPlay password only affects AirPlay/RAOP sessions. If the plugin works with the password configured but fails without it, the Apple TV is enforcing password-protected AirPlay.
 
 ## Pairing
 
