@@ -24,14 +24,24 @@ import weakref
 
 _LOGGER = logging.getLogger(__name__)
 
-# pyatv's scripts do not configure logging unless --debug is given, so send our
-# messages straight to stderr to make them visible in the Homebridge log.
+# Debug output must not go to stderr: node-pyatv treats any stderr output of
+# the pyatv child process as a failed request and discards the real result.
+# pyatv's scripts do not configure logging either, so write to a file next to
+# this module instead.
 if not _LOGGER.handlers:
-    _handler = logging.StreamHandler()
-    _handler.setFormatter(
-        logging.Formatter("pyatv_airplay_password: %(levelname)s %(message)s")
+    _log_path = os.path.join(
+        os.path.dirname(os.path.abspath(__file__)), "airplay-password.log"
     )
-    _LOGGER.addHandler(_handler)
+    try:
+        if os.path.exists(_log_path) and os.path.getsize(_log_path) > 1024 * 1024:
+            os.remove(_log_path)
+        _handler = logging.FileHandler(_log_path, encoding="utf-8")
+        _handler.setFormatter(
+            logging.Formatter("%(asctime)s %(levelname)s %(message)s")
+        )
+        _LOGGER.addHandler(_handler)
+    except OSError:
+        _LOGGER.addHandler(logging.NullHandler())
     _LOGGER.setLevel(logging.DEBUG)
     _LOGGER.propagate = False
 
