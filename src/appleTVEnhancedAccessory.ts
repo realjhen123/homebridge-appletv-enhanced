@@ -424,7 +424,9 @@ remaining)`);
                 continue;
             }
             const name: string = capitalizeFirstLetter(deviceState);
-            const configuredName: string = this.getDeviceStateConfigs()[deviceState] ?? name;
+            // Fall back to the default name if the stored one is empty, otherwise
+            // HomeKit shows the sensor without a name and assigns its own number.
+            const configuredName: string = (this.getDeviceStateConfigs()[deviceState] ?? '').trim() || name;
             this.log.debug(`Adding device state ${deviceState} as a motion sensor. (named: ${configuredName})`);
             const s: Service = this.accessory.getService(name) ||
                 this.addServiceSave(this.platform.service.MotionSensor, name, deviceState)!;
@@ -709,7 +711,8 @@ from ${appConfigs[app.id].visibilityState} to ${value}.`);
                 continue;
             }
             const name: string = capitalizeFirstLetter(mediaType);
-            const configuredName: string = this.getMediaConfigs()[mediaType] ?? name;
+            // See createDeviceStateSensors: never leave the name empty.
+            const configuredName: string = (this.getMediaConfigs()[mediaType] ?? '').trim() || name;
             this.log.debug(`Adding media type ${mediaType} as a motion sensor. (named: ${configuredName})`);
             const s: Service = this.accessory.getService(name) ||
                 this.addServiceSave(this.platform.service.MotionSensor, name, mediaType)!;
