@@ -261,6 +261,22 @@ if _PASSWORD:
                 probe.close()
         return None
 
+    async def _call_and_log(session, method, uri, *args):
+        """Run the original exchange and log its outcome (diagnostic)."""
+        try:
+            response = await _original_exchange(session, method, uri, *args)
+        except Exception as ex:  # pylint: disable=broad-except
+            _LOGGER.debug("RTSP %s %s failed: %r", method, uri or session.uri, ex)
+            raise
+        _LOGGER.debug(
+            "RTSP %s %s -> %d %s",
+            method,
+            uri or session.uri,
+            response.code,
+            response.message,
+        )
+        return response
+
     async def _exchange(
         self,
         method,
@@ -272,8 +288,8 @@ if _PASSWORD:
         protocol="RTSP/1.0",
     ):
         if self.digest_info is not None:
-            return await _original_exchange(
-                self, method, uri, content_type, headers, body, allow_error, protocol
+            return await _call_and_log(self,
+                method, uri, content_type, headers, body, allow_error, protocol
             )
 
         # Prefer a challenge fetched over a separate plain connection. This
@@ -288,14 +304,14 @@ if _PASSWORD:
             self.digest_info = rtsp.DigestInfo(
                 _AUTH_USERNAME, realm, _PASSWORD, nonce
             )
-            return await _original_exchange(
-                self, method, uri, content_type, headers, body, allow_error, protocol
+            return await _call_and_log(self,
+                method, uri, content_type, headers, body, allow_error, protocol
             )
 
         # Send the first request with allow_error so a Digest challenge can be
         # inspected instead of being raised by pyatv's HTTP implementation.
-        response = await _original_exchange(
-            self, method, uri, content_type, headers, body, True, protocol
+        response = await _call_and_log(self,
+            method, uri, content_type, headers, body, True, protocol
         )
 
         if response.code == 401:
@@ -308,8 +324,7 @@ if _PASSWORD:
                 self.digest_info = rtsp.DigestInfo(
                     _AUTH_USERNAME, realm, _PASSWORD, nonce
                 )
-                return await _original_exchange(
-                    self,
+                return await _call_and_log(self,
                     method,
                     uri,
                     content_type,
