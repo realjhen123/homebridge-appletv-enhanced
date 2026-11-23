@@ -47,9 +47,9 @@ if not _LOGGER.handlers:
 
 _PASSWORD = os.environ.get("PYATV_AIRPLAY_PASSWORD")
 
-# Diagnostic probes on the encrypted control channel, enabled by default for
-# now. Set PYATV_AIRPLAY_PROBE=0 to turn them off.
-_PROBE = os.environ.get("PYATV_AIRPLAY_PROBE", "1") == "1"
+# Diagnostic probes on the encrypted control channel (one extra GET /info on
+# every connection). Disabled by default; set PYATV_AIRPLAY_PROBE=1 to enable.
+_PROBE = os.environ.get("PYATV_AIRPLAY_PROBE", "0") == "1"
 
 if _PASSWORD:
     from pyatv import exceptions

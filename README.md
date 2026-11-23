@@ -148,10 +148,13 @@ Different devices can use different passwords via the device specific overrides:
 >
 > -   This is **not** the 4-digit PIN pairing code. Pairing credentials and the AirPlay password are independent.
 > -   The plugin generates per-device wrappers under `user_storage/appletv-enhanced/<MAC>/` for both `atvremote` and `atvscript`. They export the password as `PYATV_AIRPLAY_PASSWORD`; a small pyatv patch bundled with the plugin answers the AirPlay 2 `WWW-Authenticate: Digest realm="airplay"` challenge on the RTSP remote control channel. `atvremote` additionally receives `--airplay-password` and `--raop-password` for classic RAOP/AirPlay streaming.
-> -   This password support is **experimental**: it relies on pyatv internals (tested with pyatv 0.18.0) and on the Apple TV using HTTP Digest for AirPlay. Existing pairing credentials (PIN pairing) are still required and must be valid.
+> -   This password support is **experimental**: it relies on pyatv internals (tested with pyatv 0.18.0, tvOS 27.3) and on the Apple TV using HTTP Digest for AirPlay. Existing pairing credentials (PIN pairing) are still required and must be valid.
+> -   Re-pairing needs the Apple TV to allow it: with `Allow Access` set to `Only People Sharing This Home`, the receiver never shows a PIN. Set it to `Everyone` (or another option that permits pairing) while pairing; the AirPlay password can stay enabled afterwards.
+> -   Pairing additionally requires `srptools==1.0.1`. Version 2.0.0 made an argument of `SRPClientSession` keyword-only, which pyatv 0.18.0 does not use, so pairing fails before the PIN is requested. `requirements.txt` pins the compatible version.
 > -   The password is kept in a separate `0600` file and is redacted from the plugin logs.
 > -   Homebridge stores the password in plain text in `config.json`. Protect the file accordingly (e.g. `chmod 600 config.json`).
-> -   If the Apple TV rejects the password, the pyatv error changes from an RTSP timeout to an authentication error. Enable debug logging to see it.
+> -   Diagnostics are written to `user_storage/appletv-enhanced/airplay-password.log` (rotated at 1 MiB). They must not go to stderr: `node-pyatv` treats any pyatv stderr output as a failed request and discards the result.
+> -   If the Apple TV rejects the password, the pyatv error changes from an RTSP timeout to an authentication error. See the log file above.
 
 ## Pairing
 
